@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Peter Lemenkov <lemenkov@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=MCP Scientific Sandbox Server
+After=network.target
+
+[Service]
+Type=simple
+User=sandbox
+EnvironmentFile=/etc/sysconfig/mcp-sandbox
+WorkingDirectory=/opt/mcp-servers/mcp-sandbox
+ExecStart=/opt/mcp-servers/mcp-sandbox/venv/bin/mcp-sandbox
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mcp-sandbox
+
+[Install]
+WantedBy=multi-user.target

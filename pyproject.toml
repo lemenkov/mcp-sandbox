@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Peter Lemenkov <lemenkov@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-sandbox"
+version = "0.1.0"
+description = "MCP server for isolated scientific script execution"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Peter Lemenkov", email = "lemenkov@gmail.com" }]
+dependencies = [
+    "fastmcp>=3.0.0",
+]
+
+[project.optional-dependencies]
+systemd = ["systemd-python"]
+
+[project.scripts]
+mcp-sandbox = "mcp_sandbox.server:main"
+
+[project.urls]
+Homepage = "https://github.com/lemenkov/mcp-sandbox"
+Repository = "https://github.com/lemenkov/mcp-sandbox"
+Issues = "https://github.com/lemenkov/mcp-sandbox/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_sandbox"]

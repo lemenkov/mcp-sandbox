@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Peter Lemenkov <lemenkov@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+HOST=127.0.0.1
+PORT=8080
+SANDBOX_IMAGE=mcp-sandbox:latest
+DEFAULT_TIMEOUT=60
+MAX_TIMEOUT=300
