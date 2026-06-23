@@ -6,31 +6,34 @@ FROM registry.fedoraproject.org/fedora:latest
 RUN dnf install -y \
     # R and common packages
     R \
-    R-ggplot2 \
     R-dplyr \
-    R-tidyr \
+    R-ggplot2 \
     R-jsonlite \
+    R-tidyr \
     # GMT - Generic Mapping Tools
     GMT \
     gmt-common \
-    # Python scientific stack
-    python3 \
-    python3-numpy \
-    python3-matplotlib \
-    python3-scipy \
-    python3-pandas \
-    python3-sympy \
-    python3-scikit-learn \
-    # LaTeX
-    texlive \
-    texlive-latex \
-    texlive-collection-latexrecommended \
-    # Octave
-    octave \
     # Gnuplot
     gnuplot \
     # Julia
     julia \
+    # Octave
+    octave \
+    # Python scientific stack
+    python3 \
+    python3-geopandas \
+    python3-matplotlib \
+    python3-numpy \
+    python3-pandas \
+    python3-pyproj \
+    python3-rasterio \
+    python3-scikit-learn \
+    python3-scipy \
+    python3-sympy \
+    # LaTeX
+    texlive \
+    texlive-collection-latexrecommended \
+    texlive-latex \
     # General utilities
     bash \
     coreutils \
