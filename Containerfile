@@ -40,6 +40,8 @@ RUN dnf install -y \
     findutils \
     && dnf clean all
 
+RUN pip install --no-cache-dir obspy
+
 # Create sandbox working directories
 RUN mkdir -p /sandbox/input /sandbox/output
 
