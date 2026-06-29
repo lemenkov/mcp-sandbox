@@ -33,7 +33,7 @@ RUNTIMES = {
     "gnuplot": ["gnuplot"],
     "grass":   ["bash", "-c",
                 "cat > /sandbox/script.sh && "
-                "grass --tmp-location XY "
+                "grass --tmp-project XY "
                 "--exec bash /sandbox/script.sh"],
     "latex":   ["bash", "-c",
                 "cat > /sandbox/script.tex && pdflatex "
