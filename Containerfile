@@ -15,6 +15,8 @@ RUN dnf install -y \
     gmt-common \
     # Gnuplot
     gnuplot \
+    # GRASS GIS
+    grass \
     # Julia
     julia \
     # Octave
