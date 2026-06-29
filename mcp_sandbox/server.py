@@ -43,6 +43,19 @@ RUNTIMES = {
 }
 
 
+def _decode_input_file(filename: str, data: str) -> bytes:
+    """Decode a base64 input-file payload. Tolerates whitespace and
+    stripped '=' padding; rejects non-base64 with a clear, named error."""
+    s = "".join(data.split())          # drop line-wraps / stray whitespace
+    s += "=" * (-len(s) % 4)           # restore stripped padding
+    try:
+        return base64.b64decode(s, validate=True)
+    except ValueError as e:            # binascii.Error is a ValueError subclass
+        raise ValueError(
+            f"input file {filename!r}: not valid base64 ({e}); "
+            f"input_files maps filename -> base64-encoded bytes"
+        ) from e
+
 async def _run_container(
     runtime: str,
     script: str,
@@ -61,7 +74,7 @@ async def _run_container(
 
         for filename, b64content in (input_files or {}).items():
             safe_name = Path(filename).name
-            (input_path / safe_name).write_bytes(base64.b64decode(b64content))
+            (input_path / safe_name).write_bytes(_decode_input_file(safe_name, b64content))
 
         podman_args = [
             "podman", "run",
