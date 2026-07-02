@@ -79,6 +79,7 @@ async def _run_container(
         podman_args = [
             "podman", "run",
             "--rm",
+            "--timeout", "300",
             "--network=host",
             "--security-opt", "no-new-privileges",
             "--security-opt", "label=disable",

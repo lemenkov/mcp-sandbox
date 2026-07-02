@@ -16,6 +16,8 @@ RestartSec=5s
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=mcp-sandbox
+CPUQuota=150%
+KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target
