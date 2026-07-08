@@ -6,8 +6,12 @@
 import argparse
 import asyncio
 import base64
+import hashlib
 import logging
+import mimetypes
 import os
+import secrets
+import shutil
 import sys
 import tempfile
 import uuid
@@ -16,6 +20,10 @@ from typing import Optional
 
 from fastmcp import FastMCP
 
+PUBLIC_DIR      = Path(os.environ.get("SANDBOX_PUBLIC_DIR", "/var/cache/mcp-sandbox/outputs"))
+PUBLIC_BASE_URL = os.environ.get("SANDBOX_PUBLIC_BASE_URL", "").rstrip("/")
+PUBLIC_TTL      = int(os.environ.get("SANDBOX_PUBLIC_TTL", "3600"))
+INLINE_MAX      = int(os.environ.get("SANDBOX_INLINE_MAX_BYTES", "4096"))   # tiny text only
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "mcp-sandbox:latest")
 MAX_TIMEOUT = int(os.environ.get("MAX_TIMEOUT", "300"))
 DEFAULT_TIMEOUT = int(os.environ.get("DEFAULT_TIMEOUT", "60"))
@@ -55,6 +63,36 @@ def _decode_input_file(filename: str, data: str) -> bytes:
             f"input file {filename!r}: not valid base64 ({e}); "
             f"input_files maps filename -> base64-encoded bytes"
         ) from e
+
+
+def _publish_outputs(output_path: Path) -> list[dict]:
+    """Move sandbox outputs to the web-served staging dir under a per-run
+    capability token; return metadata (+ url), never raw bytes. Small text
+    files are additionally inlined for one-round-trip convenience."""
+    files = [p for p in sorted(output_path.iterdir()) if p.is_file()]
+    if not files:
+        return []
+    token = secrets.token_urlsafe(32)          # ~256-bit capability
+    dest = PUBLIC_DIR / token
+    dest.mkdir(parents=True, exist_ok=True)
+    results = []
+    for p in files:
+        name = Path(p.name).name               # basename only — no traversal
+        size = p.stat().st_size
+        mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        digest = hashlib.sha256(p.read_bytes()).hexdigest()
+        shutil.move(str(p), str(dest / name))
+        (dest / name).chmod(0o644)             # nginx must read it
+        meta = {
+            "name": name, "bytes": size, "sha256": digest, "mime": mime,
+            "url": f"{PUBLIC_BASE_URL}/{token}/{name}" if PUBLIC_BASE_URL else None,
+            "expires_in": PUBLIC_TTL,
+        }
+        if mime.startswith("text/") and size <= INLINE_MAX:
+            meta["text"] = (dest / name).read_text("utf-8", "replace")
+        results.append(meta)
+    return results
+
 
 async def _run_container(
     runtime: str,
@@ -114,16 +152,13 @@ async def _run_container(
             return {
                 "success": False,
                 "error": f"Execution timed out after {timeout}s",
-                "stdout": "", "stderr": "", "output_files": {},
+                "stdout": "", "stderr": "", "output_files": [],
             }
 
         # Collect output files from host-side tmpdir
-        output_files = {}
-        for f in Path(out_dir).iterdir():
-            if f.is_file():
-                output_files[f.name] = base64.b64encode(
-                    f.read_bytes()
-                ).decode()
+        # Publish outputs as capability URLs (metadata only) instead of
+        # inlining base64 into the response / model context.
+        output_files = _publish_outputs(Path(out_dir))
 
         return {
             "success": proc.returncode == 0,
