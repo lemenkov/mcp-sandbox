@@ -52,13 +52,17 @@ RUNTIMES = {
 
 
 def _decode_input_file(filename: str, data: str) -> bytes:
-    """Decode a base64 input-file payload. Tolerates whitespace and
-    stripped '=' padding; rejects non-base64 with a clear, named error."""
-    s = "".join(data.split())          # drop line-wraps / stray whitespace
-    s += "=" * (-len(s) % 4)           # restore stripped padding
+    """Decode a base64 input-file payload. Tolerates whitespace, a data: URI
+    prefix, the URL-safe alphabet, and stripped '=' padding; still rejects
+    genuinely non-base64 content with a clear, named error."""
+    s = "".join(data.split())                   # drop line-wraps / stray whitespace
+    if s.startswith("data:") and "," in s:      # strip a data:<mime>;base64, prefix
+        s = s.split(",", 1)[1]
+    s = s.replace("-", "+").replace("_", "/")   # accept URL-safe alphabet
+    s += "=" * (-len(s) % 4)                     # restore stripped padding
     try:
         return base64.b64decode(s, validate=True)
-    except ValueError as e:            # binascii.Error is a ValueError subclass
+    except ValueError as e:
         raise ValueError(
             f"input file {filename!r}: not valid base64 ({e}); "
             f"input_files maps filename -> base64-encoded bytes"
