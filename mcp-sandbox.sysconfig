@@ -6,3 +6,7 @@ PORT=8080
 SANDBOX_IMAGE=mcp-sandbox:latest
 DEFAULT_TIMEOUT=60
 MAX_TIMEOUT=300
+# Output-by-reference — REPLACE names with the actual ones from the code:
+SANDBOX_PUBLIC_URL=https://host.example    # base for capability links
+OUTPUT_DIR=/var/cache/mcp-sandbox/outputs  # staging directory
+OUTPUT_TTL=3600                            # seconds; keep in sync with GC timer
