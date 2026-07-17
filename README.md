@@ -21,7 +21,7 @@ stateless, no host filesystem access.
 | Runtime   | Tools                                                                   |
 | --------- | ----------------------------------------------------------------------- |
 | `r`       | R + ggplot2, dplyr, tidyr, jsonlite                                     |
-| `python`  | Python 3 + numpy, matplotlib, scipy, pandas, sympy, scikit-learn, obspy |
+| `python`  | Python 3 + numpy, scipy, pandas, matplotlib, sympy, scikit-learn, geopandas, pyproj, rasterio, obspy |
 | `gmt`     | Generic Mapping Tools                                                   |
 | `grass`   | GRASS GIS — headless; each run gets a throwaway location                |
 | `latex`   | pdflatex (texlive)                                                      |

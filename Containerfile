@@ -26,6 +26,7 @@ RUN dnf install -y \
     python3-geopandas \
     python3-matplotlib \
     python3-numpy \
+    python3-obspy \
     python3-pandas \
     python3-pyproj \
     python3-rasterio \
@@ -40,10 +41,7 @@ RUN dnf install -y \
     bash \
     coreutils \
     findutils \
-    python3-pip \
     && dnf clean all
-
-RUN python3 -m pip install --no-cache-dir obspy
 
 # Create sandbox working directories
 RUN mkdir -p /sandbox/input /sandbox/output
