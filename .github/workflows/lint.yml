@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: © 2026 Peter Lemenkov
+# SPDX-License-Identifier: CC0-1.0
+
+name: Lint
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/dependabot.yml'
+      - '.github/workflows/lint.yml'
+      - '.github/workflows/reuse.yml'
+      - '.gitignore'
+      - 'Containerfile'
+      - 'LICENSE'
+      - 'LICENSES/**'
+      - 'README.md'
+      - 'mcp-sandbox.service'
+      - 'mcp-sandbox.sysconfig'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+    paths-ignore:
+      - '.github/dependabot.yml'
+      - '.github/workflows/lint.yml'
+      - '.github/workflows/reuse.yml'
+      - '.gitignore'
+      - 'Containerfile'
+      - 'LICENSE'
+      - 'LICENSES/**'
+      - 'README.md'
+      - 'mcp-sandbox.service'
+      - 'mcp-sandbox.sysconfig'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    name: ruff (lint + format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+      - run: pip install ruff
+      - run: ruff check mcp_sandbox
+      - run: ruff format --check mcp_sandbox
