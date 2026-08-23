@@ -17,13 +17,16 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 from fastmcp import FastMCP
 
-PUBLIC_DIR      = Path(os.environ.get("SANDBOX_PUBLIC_DIR", "/var/cache/mcp-sandbox/outputs"))
+PUBLIC_DIR = Path(
+    os.environ.get("SANDBOX_PUBLIC_DIR", "/var/cache/mcp-sandbox/outputs")
+)
 PUBLIC_BASE_URL = os.environ.get("SANDBOX_PUBLIC_BASE_URL", "").rstrip("/")
-PUBLIC_TTL      = int(os.environ.get("SANDBOX_PUBLIC_TTL", "3600"))
-INLINE_MAX      = int(os.environ.get("SANDBOX_INLINE_MAX_BYTES", "4096"))   # tiny text only
+PUBLIC_TTL = int(os.environ.get("SANDBOX_PUBLIC_TTL", "3600"))
+INLINE_MAX = int(os.environ.get("SANDBOX_INLINE_MAX_BYTES", "4096"))  # tiny text only
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "mcp-sandbox:latest")
 MAX_TIMEOUT = int(os.environ.get("MAX_TIMEOUT", "300"))
 DEFAULT_TIMEOUT = int(os.environ.get("DEFAULT_TIMEOUT", "60"))
@@ -32,40 +35,57 @@ mcp = FastMCP("Scientific Sandbox")
 
 # All runtimes receive script via stdin
 RUNTIMES = {
-    "r":       ["Rscript", "-"],
-    "python":  ["python3", "-"],
-    "bash":    ["bash", "-s"],
-    "gmt":     ["bash", "-s"],
-    "octave":  ["octave", "--no-gui"],
-    "julia":   ["julia", "--startup-file=no", "-"],
+    "r": ["Rscript", "-"],
+    "python": ["python3", "-"],
+    "bash": ["bash", "-s"],
+    "gmt": ["bash", "-s"],
+    "octave": ["octave", "--no-gui"],
+    "julia": ["julia", "--startup-file=no", "-"],
     "gnuplot": ["gnuplot"],
-    "grass":   ["bash", "-c",
-                "cat > /sandbox/script.sh && "
-                "grass --tmp-project XY "
-                "--exec bash /sandbox/script.sh"],
-    "latex":   ["bash", "-c",
-                "cat > /sandbox/script.tex && pdflatex "
-                "-interaction=nonstopmode "
-                "-output-directory=/sandbox/output "
-                "/sandbox/script.tex"],
+    "grass": [
+        "bash",
+        "-c",
+        "cat > /sandbox/script.sh && "
+        "grass --tmp-project XY "
+        "--exec bash /sandbox/script.sh",
+    ],
+    "latex": [
+        "bash",
+        "-c",
+        "cat > /sandbox/script.tex && pdflatex "
+        "-interaction=nonstopmode "
+        "-output-directory=/sandbox/output "
+        "/sandbox/script.tex",
+    ],
 }
+
+
+def _safe_name(filename: str) -> str:
+    """Reduce a caller-supplied filename to a single safe path component.
+    Normalizes Windows-style separators (submissions may originate off-Linux)
+    and rejects empty or traversal names ('', '.', '..')."""
+    name = Path(filename.replace("\\", "/")).name
+    if name in ("", ".", ".."):
+        raise ValueError(f"unsafe input filename {filename!r}")
+    return name
 
 
 def _decode_input_file(filename: str, data: str) -> bytes:
     """Decode a base64 input-file payload. Tolerates whitespace, a data: URI
     prefix, the URL-safe alphabet, and stripped '=' padding; still rejects
     genuinely non-base64 content with a clear, named error."""
-    s = "".join(data.split())                   # drop line-wraps / stray whitespace
-    if s.startswith("data:") and "," in s:      # strip a data:<mime>;base64, prefix
+    s = "".join(data.split())  # drop line-wraps / stray whitespace
+    if s.startswith("data:") and "," in s:  # strip a data:<mime>;base64, prefix
         s = s.split(",", 1)[1]
-    s = s.replace("-", "+").replace("_", "/")   # accept URL-safe alphabet
-    s += "=" * (-len(s) % 4)                     # restore stripped padding
+    s = s.replace("-", "+").replace("_", "/")  # accept URL-safe alphabet
+    s += "=" * (-len(s) % 4)  # restore stripped padding
     try:
         return base64.b64decode(s, validate=True)
     except ValueError as e:
         raise ValueError(
             f"input file {filename!r}: not valid base64 ({e}); "
-            f"input_files maps filename -> base64-encoded bytes"
+            f"input_files maps filename -> base64-encoded bytes. If this is "
+            f"text, pass it via text_files (filename -> UTF-8 text) instead."
         ) from e
 
 
@@ -76,20 +96,25 @@ def _publish_outputs(output_path: Path) -> list[dict]:
     files = [p for p in sorted(output_path.iterdir()) if p.is_file()]
     if not files:
         return []
-    token = secrets.token_urlsafe(32)          # ~256-bit capability
+    token = secrets.token_urlsafe(32)  # ~256-bit capability
     dest = PUBLIC_DIR / token
     dest.mkdir(parents=True, exist_ok=True)
     results = []
     for p in files:
-        name = Path(p.name).name               # basename only — no traversal
+        name = Path(p.name).name  # basename only — no traversal
         size = p.stat().st_size
         mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
         digest = hashlib.sha256(p.read_bytes()).hexdigest()
         shutil.move(str(p), str(dest / name))
-        (dest / name).chmod(0o644)             # nginx must read it
+        (dest / name).chmod(0o644)  # nginx must read it
         meta = {
-            "name": name, "bytes": size, "sha256": digest, "mime": mime,
-            "url": f"{PUBLIC_BASE_URL}/{token}/{name}" if PUBLIC_BASE_URL else None,
+            "name": name,
+            "bytes": size,
+            "sha256": digest,
+            "mime": mime,
+            "url": f"{PUBLIC_BASE_URL}/{token}/{quote(name)}"
+            if PUBLIC_BASE_URL
+            else None,
             "expires_in": PUBLIC_TTL,
         }
         if mime.startswith("text/") and size <= INLINE_MAX:
@@ -102,37 +127,53 @@ async def _run_container(
     runtime: str,
     script: str,
     input_files: dict[str, str],
+    text_files: dict[str, str],
     timeout: int,
 ) -> dict:
     """Run a script in an isolated podman container via stdin."""
     cmd = RUNTIMES[runtime]
 
-    with tempfile.TemporaryDirectory(prefix="mcp-sandbox-input-") as input_dir, \
-         tempfile.TemporaryDirectory(prefix="mcp-sandbox-out-") as out_dir:
-
+    with (
+        tempfile.TemporaryDirectory(prefix="mcp-sandbox-input-") as input_dir,
+        tempfile.TemporaryDirectory(prefix="mcp-sandbox-out-") as out_dir,
+    ):
         os.chmod(out_dir, 0o777)
 
         input_path = Path(input_dir)
 
         for filename, b64content in (input_files or {}).items():
-            safe_name = Path(filename).name
-            (input_path / safe_name).write_bytes(_decode_input_file(safe_name, b64content))
+            safe_name = _safe_name(filename)
+            (input_path / safe_name).write_bytes(
+                _decode_input_file(safe_name, b64content)
+            )
+
+        for filename, content in (text_files or {}).items():
+            safe_name = _safe_name(filename)
+            (input_path / safe_name).write_text(content, encoding="utf-8")
 
         podman_args = [
-            "podman", "run",
+            "podman",
+            "run",
             "--rm",
-            "--timeout", "300",
+            "--timeout",
+            "300",
             "--network=host",
-            "--security-opt", "no-new-privileges",
-            "--security-opt", "label=disable",
-            "--memory", "2g",
-            "--cpus", "2",
-            "--tmpfs", "/tmp:rw,size=512m",
-            "-v", f"{out_dir}:/sandbox/output:rw",
+            "--security-opt",
+            "no-new-privileges",
+            "--security-opt",
+            "label=disable",
+            "--memory",
+            "2g",
+            "--cpus",
+            "2",
+            "--tmpfs",
+            "/tmp:rw,size=512m",
+            "-v",
+            f"{out_dir}:/sandbox/output:rw",
             "-i",
         ]
 
-        if input_files:
+        if input_files or text_files:
             podman_args += ["-v", f"{input_dir}:/sandbox/input:ro"]
 
         podman_args += [SANDBOX_IMAGE, *cmd]
@@ -156,7 +197,9 @@ async def _run_container(
             return {
                 "success": False,
                 "error": f"Execution timed out after {timeout}s",
-                "stdout": "", "stderr": "", "output_files": [],
+                "stdout": "",
+                "stderr": "",
+                "output_files": [],
             }
 
         # Collect output files from host-side tmpdir
@@ -175,12 +218,17 @@ async def _run_container(
 
 @mcp.tool(
     tags={"write"},
-    annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": True},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "openWorldHint": True,
+    },
 )
 async def run_script(
     runtime: str,
     script: str,
     input_files: Optional[dict[str, str]] = None,
+    text_files: Optional[dict[str, str]] = None,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> dict:
     """Execute a script in an isolated sandbox container.
@@ -202,7 +250,9 @@ async def run_script(
         }
 
     timeout = min(timeout, MAX_TIMEOUT)
-    return await _run_container(runtime, script, input_files or {}, timeout)
+    return await _run_container(
+        runtime, script, input_files or {}, text_files or {}, timeout
+    )
 
 
 @mcp.tool(
@@ -212,10 +262,7 @@ async def run_script(
 async def list_runtimes() -> dict:
     """List available scientific runtimes in the sandbox."""
     return {
-        "runtimes": {
-            name: {"command": cmd[0]}
-            for name, cmd in RUNTIMES.items()
-        },
+        "runtimes": {name: {"command": cmd[0]} for name, cmd in RUNTIMES.items()},
         "image": SANDBOX_IMAGE,
         "max_timeout": MAX_TIMEOUT,
         "default_timeout": DEFAULT_TIMEOUT,
@@ -245,6 +292,7 @@ def main() -> None:
 
     try:
         from systemd.journal import JournalHandler
+
         handler: logging.Handler = JournalHandler(SYSLOG_IDENTIFIER="mcp-sandbox")
     except ImportError:
         handler = logging.StreamHandler(sys.stderr)
