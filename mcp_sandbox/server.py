@@ -141,15 +141,24 @@ async def _run_container(
 
         input_path = Path(input_dir)
 
-        for filename, b64content in (input_files or {}).items():
-            safe_name = _safe_name(filename)
-            (input_path / safe_name).write_bytes(
-                _decode_input_file(safe_name, b64content)
-            )
+        try:
+            for filename, b64content in (input_files or {}).items():
+                safe_name = _safe_name(filename)
+                (input_path / safe_name).write_bytes(
+                    _decode_input_file(safe_name, b64content)
+                )
 
-        for filename, content in (text_files or {}).items():
-            safe_name = _safe_name(filename)
-            (input_path / safe_name).write_text(content, encoding="utf-8")
+            for filename, content in (text_files or {}).items():
+                safe_name = _safe_name(filename)
+                (input_path / safe_name).write_text(content, encoding="utf-8")
+        except ValueError as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "stdout": "",
+                "stderr": "",
+                "output_files": [],
+            }
 
         podman_args = [
             "podman",
