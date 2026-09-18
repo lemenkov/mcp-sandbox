@@ -31,7 +31,6 @@ RUN dnf install -y \
     python3-numpy \
     python3-obspy \
     python3-pandas \
-    python3-pygmt \
     python3-pyproj \
     python3-pyyaml \
     python3-rasterio \
