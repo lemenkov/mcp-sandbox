@@ -244,7 +244,11 @@ async def run_script(
 
     Script is passed via stdin. Container is deleted after execution — fully
     stateless, no reuse. Output files written to /sandbox/output/ are returned
-    as base64. Input files are available at /sandbox/input/.
+    by reference, not inline: each comes back as metadata (name, bytes,
+    sha256, mime, expires_in) plus a short-lived capability URL to fetch the
+    bytes on demand. Small text files (<= SANDBOX_INLINE_MAX_BYTES) also
+    carry their content in a "text" field. Input files are available at
+    /sandbox/input/.
 
     Args:
         runtime: Runtime to use (r, python, bash, gmt, octave, julia, gnuplot, latex)
@@ -277,7 +281,10 @@ async def list_runtimes() -> dict:
         "default_timeout": DEFAULT_TIMEOUT,
         "notes": [
             "All scripts passed via stdin",
-            "Output files written to /sandbox/output/ returned as base64",
+            (
+                "Output files written to /sandbox/output/ returned by reference: "
+                "metadata + short-lived capability URL (small text also inlined)"
+            ),
             "Input files available at /sandbox/input/ (passed as base64)",
             "Containers deleted after each run — fully stateless (--rm)",
             "Network access enabled",
