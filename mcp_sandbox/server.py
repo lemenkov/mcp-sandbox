@@ -6,6 +6,7 @@
 import argparse
 import asyncio
 import base64
+import contextlib
 import hashlib
 import logging
 import mimetypes
@@ -14,9 +15,7 @@ import secrets
 import shutil
 import sys
 import tempfile
-import uuid
 from pathlib import Path
-from typing import Optional
 from urllib.parse import quote
 
 from fastmcp import FastMCP
@@ -45,17 +44,21 @@ RUNTIMES = {
     "grass": [
         "bash",
         "-c",
-        "cat > /sandbox/script.sh && "
-        "grass --tmp-project XY "
-        "--exec bash /sandbox/script.sh",
+        (
+            "cat > /sandbox/script.sh && "
+            "grass --tmp-project XY "
+            "--exec bash /sandbox/script.sh"
+        ),
     ],
     "latex": [
         "bash",
         "-c",
-        "cat > /sandbox/script.tex && pdflatex "
-        "-interaction=nonstopmode "
-        "-output-directory=/sandbox/output "
-        "/sandbox/script.tex",
+        (
+            "cat > /sandbox/script.tex && pdflatex "
+            "-interaction=nonstopmode "
+            "-output-directory=/sandbox/output "
+            "/sandbox/script.tex"
+        ),
     ],
 }
 
@@ -199,10 +202,10 @@ async def _run_container(
                 timeout=timeout + 5,
             )
         except asyncio.TimeoutError:
-            try:
+            # The process may have exited between the timeout and the kill;
+            # that is the outcome we wanted, so there is nothing to report.
+            with contextlib.suppress(ProcessLookupError):
                 proc.kill()
-            except Exception:
-                pass
             return {
                 "success": False,
                 "error": f"Execution timed out after {timeout}s",
@@ -236,8 +239,8 @@ async def _run_container(
 async def run_script(
     runtime: str,
     script: str,
-    input_files: Optional[dict[str, str]] = None,
-    text_files: Optional[dict[str, str]] = None,
+    input_files: dict[str, str] | None = None,
+    text_files: dict[str, str] | None = None,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> dict:
     """Execute a script in an isolated sandbox container.
